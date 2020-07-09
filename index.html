@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="cn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Keeper</title>
+    <link rel="stylesheet" href="./frameworks/w3.css">
+    <link rel="stylesheet" href="./frameworks/w3-colors-flat.css">
+    <script src="./frameworks/vue.js"></script>
+</head>
+<style>
+    html,body,#app{
+        height: 100%;
+        box-sizing: border-box;
+    }
+    #key-input{
+        position: fixed;
+        left: 50%;
+        top:50%;
+        width: 300px;
+        height: 150px;
+        margin-left: -150px;
+        margin-top: -75px;
+        padding: 10px 20px;
+        z-index: 10;
+        background-color: #fff;
+    }
+    #key-input>button{
+        display: block;
+        margin: 10px 0;
+    }
+    #block{
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #555;
+        opacity: 0.8;
+        z-index: 5;
+    }
+</style>
+<body>
+    <div id="app" class="w3-container w3-padding-top">
+        <div id="key-input" v-if="inputKey">
+            <label class="w3-text-blue"><b>请输入key</b></label>
+            <input class="w3-input w3-border" type="password" v-model="key">
+            <button class="w3-btn w3-blue" @click="keyGot()">确定</button>
+        </div>
+        <div id="block" v-if="inputKey"></div>
+        <button class="w3-btn w3-flat-belize-hole" @click="open()">打开文件</button>
+        <button class="w3-btn w3-flat-belize-hole" @click="save()">保存文件</button>
+        <button class="w3-btn w3-flat-belize-hole" @click="newFile()">新建文件</button>
+        <div id="password-book" class="w3-margin-top">
+            <table class="w3-table w3-striped w3-border">
+                <thead>
+                    <th>站点</th><th>用户名</th><th>密码</th><th>操作</th>
+                </thead>
+                <tbody>
+                    <tr v-for="(item,index) in passwordBook">
+                        <td width="20%">
+                            <span v-show="!item.editStatus">{{item.site}}</span>
+                            <input v-show="item.editStatus" type="text" class="w3-input" v-model="item.site">
+                        </td>
+                        <td width="20%">
+                            <span v-show="!item.editStatus">{{item.username}}</span>
+                            <input v-show="item.editStatus" type="text" class="w3-input" v-model="item.username">
+                        </td>
+                        <td width="20%">
+                            <button  class="w3-btn w3-flat-peter-river" v-show="!item.editStatus" @click="copyPassword(index)">点击复制</button>
+                            <input v-show="item.editStatus" type="password" class="w3-input" v-model="item.password">
+                        </td>
+                        <td width="20%">
+                            <button class="w3-btn w3-flat-wet-asphalt" @click="toggleEdit(index)">{{item.editStatus?"确定":"编辑"}}</button>
+                            <button class="w3-btn w3-flat-alizarin w3-margin-left" @click="DeleteOrCancel(index)">{{item.editStatus?"取消":"删除"}}</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <button class="w3-btn w3-flat-peter-river w3-margin-top" @click="newItem()">新建</button>
+        </div>
+    </div>
+    <script>
+        const { clipboard } = require('electron');
+        const { dialog } = require('electron').remote;
+        const config=require('./config.json');
+        const fs=require('fs');
+        const app=new Vue({
+            el:"#app",
+            data:{
+                passwordBook:[],
+                history:[],
+                key:'',
+                inputKey:true,
+                filePath:"./password_books/default_book.json"
+            },
+            created(){
+                this.filePath=config.lastOpenedFilePath;
+                let interval=setInterval(() => {
+                    if(!this.inputKey){
+                        this.loadFile();
+                        clearInterval(interval);
+                    }
+                }, 100);
+            },
+            methods:{
+                open(){
+                    dialog.showOpenDialog({
+                        title:"打开",
+                        filters:[
+                            {name:"Custom File Type",extensions:["json"]}
+                        ]
+                    }).then((result)=>{
+                        if(!result.canceled){
+                            this.filePath=result.filePaths[0];
+                            this.inputKey=true;
+                            let interval=setInterval(() => {
+                                if(!this.inputKey){
+                                    clearInterval(interval);
+                                    this.loadFile();
+                                }
+                            }, 100);
+                        }
+                    });
+                },
+                loadFile(){
+                    this.passwordBook=[];
+                    Object.keys(require.cache).forEach((key)=>{//清空require缓存
+                        delete require.cache[key];
+                    });
+                    let book=require(this.filePath).passwordBook;
+                    for(item of book){
+                        let obj={
+                            site:decryption(item.site,this.key),
+                            username:decryption(item.username,this.key),
+                            password:decryption(item.password,this.key),
+                            editStatus:false
+                        }
+                        this.passwordBook.push(obj);
+                    }
+                    this.history=simpleDeepCopy(this.passwordBook);
+                    config.lastOpenedFilePath=this.filePath;
+                    fs.writeFile("./config.json",JSON.stringify(config),(err)=>{if(err) console.log(err)});
+                },
+                toggleEdit(index){
+                    this.passwordBook[index].editStatus=!this.passwordBook[index].editStatus;
+                    this.history[index]=simpleDeepCopy(this.passwordBook[index]);
+                },
+                copyPassword(index){
+                    clipboard.writeText(this.passwordBook[index].password);
+                },
+                DeleteOrCancel(index){
+                    if(!this.passwordBook[index].editStatus){//删除
+                        this.passwordBook.splice(index,1);
+                        this.history.splice(index,1);
+                    }
+                    else{//取消编辑
+                        this.passwordBook[index].site=this.history[index].site;
+                        this.passwordBook[index].username=this.history[index].username;
+                        this.passwordBook[index].password=this.history[index].password;
+                        this.passwordBook[index].editStatus=false;
+                    }
+                },
+                newItem(){
+                    let item={
+                        site:"",
+                        username:"",
+                        password:"",
+                        editStatus:true
+                    }
+                    this.passwordBook.push(item);
+                    this.history.push(item);
+                },
+                keyGot(){
+                    this.inputKey=false;
+                },
+                save(){
+                    this.inputKey=true;
+                    let self=this;
+                    let interval=setInterval(() => {
+                        if(!self.inputKey){
+                            self.saveFile();
+                            clearInterval(interval);
+                        }
+                    }, 100);
+                },
+                newFile(){
+                    dialog.showSaveDialog({
+                        title:"新建",
+                        filters:[
+                            {name:"Custom File Type",extensions:["json"]}
+                        ]
+                    }).then((result)=>{
+                        if(!result.canceled){
+                            this.filePath=result.filePath;
+                            this.passwordBook=[];
+                            this.history=[];
+                        }
+                    })
+                },
+                saveFile(){
+                    let self=this;
+                    let time=new Date();
+                    let encryptedBook=[];
+                    for(item of this.passwordBook){
+                        let i={
+                            site:encryption(item.site,this.key),
+                            username:encryption(item.username,this.key),
+                            password:encryption(item.password,this.key)
+                        };
+                        encryptedBook.push(i)
+                    }
+                    let data={
+                        passwordBook:encryptedBook,
+                        lastModifyTime:time.toString()
+                    }
+                    fs.writeFile(self.filePath,JSON.stringify(data),function(err){
+                        if(err){
+                            dialog.showErrorBox('错误',err.toString());
+                        }
+                        else{
+                            dialog.showMessageBox({
+                                type:"info",
+                                message:"已保存"
+                            })
+                        }
+                    })
+                    config.lastOpenedFilePath=this.filePath;
+                    fs.writeFile("./config.json",JSON.stringify(config),(err)=>{if(err) console.log(err)});
+                }
+            }
+        })
+        function simpleDeepCopy(obj){
+            return JSON.parse(JSON.stringify(obj));
+        }
+        function encryption(str,key) {
+            let s = '';
+            str.split('').map(item => {
+                s += handle(item,key);
+            })
+            return s;
+        }
+  
+        function decryption(str,key) {
+            let s = '';
+            str.split('').map(item => {
+                s += handle(item,key);
+            })
+            return s;
+        }
+        
+        function handle(str,key) {
+            let code = str.charCodeAt();
+            let newCode = code ^ key;
+            return String.fromCharCode(newCode);
+        }
+    </script>
+</body>
+</html>
