@@ -233,26 +233,23 @@
         function simpleDeepCopy(obj){
             return JSON.parse(JSON.stringify(obj));
         }
-        function encryption(str,key) {
-            let s = '';
-            str.split('').map(item => {
-                s += handle(item,key);
+        function encryption(str,key){
+            if(key==undefined||key=="") return str;
+            let s=[];
+            let keyCode=key.split("").map((c)=>{return c.charCodeAt()});
+            str.split("").forEach((element,index) => {
+                s.push(element.charCodeAt()^keyCode[index%key.length]);
+            });
+            return s.join("_");
+        }
+        function decryption(str,key){
+            if(key==undefined||key=="") return str;
+            let s="";
+            let keyCode=key.split("").map((c)=>{return c.charCodeAt()});
+            str.split("_").forEach((element,index)=>{
+                s+=String.fromCharCode(element^keyCode[index%key.length]);
             })
             return s;
-        }
-  
-        function decryption(str,key) {
-            let s = '';
-            str.split('').map(item => {
-                s += handle(item,key);
-            })
-            return s;
-        }
-        
-        function handle(str,key) {
-            let code = str.charCodeAt();
-            let newCode = code ^ key;
-            return String.fromCharCode(newCode);
         }
     </script>
 </body>
