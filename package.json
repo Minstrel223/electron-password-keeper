@@ -10,9 +10,10 @@
     "build": "electron-builder"
   },
   "build": {
+    "productName":"密卷",
 		"appId": "com.minstrel.app",
 		"directories": {
-			"output": "D:\\build"
+			"output": "./output"
 		},
 		"win": {
 			"target": [
