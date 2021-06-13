@@ -13,19 +13,18 @@
         height: 100%;
         box-sizing: border-box;
     }
-    #key-input{
+    #key-input-open,#key-input-save{
         position: fixed;
         left: 50%;
         top:50%;
         width: 300px;
-        height: 150px;
         margin-left: -150px;
         margin-top: -75px;
         padding: 10px 20px;
         z-index: 10;
         background-color: #fff;
     }
-    #key-input>button{
+    #key-input>button,#key-input-save>button{
         display: block;
         margin: 10px 0;
     }
@@ -42,12 +41,20 @@
 </style>
 <body>
     <div id="app" class="w3-container w3-padding-top">
-        <div id="key-input" v-if="inputKey">
+        <div id="key-input-open" v-if="inputKeyOpen">
             <label class="w3-text-blue"><b>请输入key</b></label>
             <input class="w3-input w3-border" type="password" v-model="key">
-            <button class="w3-btn w3-blue" @click="keyGot()">确定</button>
+            <button class="w3-btn w3-blue" @click="keyGotOpen()">确定</button>
         </div>
-        <div id="block" v-if="inputKey"></div>
+        <div id="key-input-save" v-if="inputKeySave">
+            <label class="w3-text-blue"><b>请输入key</b></label>
+            <input class="w3-input w3-border" type="password" v-model="key">
+            <label class="w3-text-blue"><b>请再次输入key</b></label>
+            <input class="w3-input w3-border" type="password" v-model="keyRepeat">
+            <span v-if="this.key!=this.keyRepeat">前后输入密码不一致</span><br>
+            <button class="w3-btn w3-blue" @click="keyGotSave()">确定</button>
+        </div>
+        <div id="block" v-if="inputKeyOpen||inputKeySave"></div>
         <button class="w3-btn w3-flat-belize-hole" @click="open()">打开文件</button>
         <button class="w3-btn w3-flat-belize-hole" @click="save()">保存文件</button>
         <button class="w3-btn w3-flat-belize-hole" @click="newFile()">新建文件</button>
@@ -81,9 +88,16 @@
         </div>
     </div>
     <script>
+        const electron=require('electron').remote.app;
         const { clipboard } = require('electron');
         const { dialog } = require('electron').remote;
-        const config=require('./config.json');
+        const path=require('path');
+        const appPath=path.resolve(electron.getAppPath(),'..');//打包
+        //const appPath=electron.getAppPath();//调试
+        //console.log(appPath);
+        const configPath = path.join(appPath,'/app.asar.unpacked/src/config.json');//打包
+        //const configPath = path.join(appPath,'/src/config.json');//调试
+        const config=require(configPath);
         const fs=require('fs');
         const app=new Vue({
             el:"#app",
@@ -91,17 +105,14 @@
                 passwordBook:[],
                 history:[],
                 key:'',
-                inputKey:true,
-                filePath:"./password_books/default_book.json"
+                keyRepeat:'',
+                inputKeyOpen:true,
+                inputKeySave:false,
+                filePath:path.join(appPath,'/app.asar.unpacked/src/password_books/default_book.json')//打包
+                //filePath:path.join(appPath,'src/password_books/default_book.json')//调试
             },
             created(){
-                this.filePath=config.lastOpenedFilePath;
-                let interval=setInterval(() => {
-                    if(!this.inputKey){
-                        this.loadFile();
-                        clearInterval(interval);
-                    }
-                }, 100);
+                this.filePath=config.lastOpenedFilePath||this.filePath;
             },
             methods:{
                 open(){
@@ -113,13 +124,7 @@
                     }).then((result)=>{
                         if(!result.canceled){
                             this.filePath=result.filePaths[0];
-                            this.inputKey=true;
-                            let interval=setInterval(() => {
-                                if(!this.inputKey){
-                                    clearInterval(interval);
-                                    this.loadFile();
-                                }
-                            }, 100);
+                            this.inputKeyOpen=true;
                         }
                     });
                 },
@@ -140,7 +145,7 @@
                     }
                     this.history=simpleDeepCopy(this.passwordBook);
                     config.lastOpenedFilePath=this.filePath;
-                    fs.writeFile("./config.json",JSON.stringify(config),(err)=>{if(err) console.log(err)});
+                    fs.writeFile(configPath,JSON.stringify(config),(err)=>{if(err) console.log(err)});
                 },
                 toggleEdit(index){
                     this.passwordBook[index].editStatus=!this.passwordBook[index].editStatus;
@@ -171,18 +176,18 @@
                     this.passwordBook.push(item);
                     this.history.push(item);
                 },
-                keyGot(){
-                    this.inputKey=false;
+                keyGotOpen(){
+                    this.loadFile();
+                    this.inputKeyOpen=false;
                 },
                 save(){
-                    this.inputKey=true;
-                    let self=this;
-                    let interval=setInterval(() => {
-                        if(!self.inputKey){
-                            self.saveFile();
-                            clearInterval(interval);
-                        }
-                    }, 100);
+                    this.inputKeySave=true;
+                },
+                keyGotSave(){
+                    if(this.key==this.keyRepeat){
+                        this.inputKeySave=false;
+                        this.saveFile();
+                    }
                 },
                 newFile(){
                     dialog.showSaveDialog({
@@ -226,7 +231,7 @@
                         }
                     })
                     config.lastOpenedFilePath=this.filePath;
-                    fs.writeFile("./config.json",JSON.stringify(config),(err)=>{if(err) console.log(err)});
+                    fs.writeFile(configPath,JSON.stringify(config),(err)=>{if(err) console.log(err)});
                 }
             }
         })

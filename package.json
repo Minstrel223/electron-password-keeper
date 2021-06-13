@@ -1,13 +1,35 @@
 {
   "name": "electron-password-keeper",
-  "version": "1.0.0",
-  "description": "",
+  "version": "1.0.1",
+  "description": "密码本",
+  "author": "Minstrel223",
+  "license": "ISC",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build": "electron-builder"
   },
-  "author": "",
-  "license": "ISC",
+  "build": {
+		"appId": "com.minstrel.app",
+		"directories": {
+			"output": "D:\\build"
+		},
+		"win": {
+			"target": [
+				"nsis",
+				"zip"
+			],
+      "asarUnpack":[
+        "./src/config.json",
+        "./src/password_books/*"
+      ],
+      "icon":"./icons/icon.ico"
+		},
+		"files": [
+			"src/**/*",
+			"main.js"
+		]
+	},
   "devDependencies": {
     "electron": "^9.1.0"
   }
